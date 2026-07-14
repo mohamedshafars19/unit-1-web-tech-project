@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dispatch — Deadline Board</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Courier+Prime:wght@400;700&display=swap');
+
+  :root {
+    --bg: #171512;
+    --board-case: #0b0b0a;
+    --board-cell: #141311;
+    --amber: #ffb400;
+    --amber-dim: #6b5320;
+    --red: #d1493c;
+    --green: #5f8267;
+    --ticket-bg: #efe6d1;
+    --ticket-ink: #2b2620;
+    --ticket-ink-dim: #6b6151;
+    --ticket-border: #d8cbac;
+    --text: #efe9df;
+    --text-dim: #8f887c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.035) 1px, transparent 0);
+    background-size: 22px 22px;
+    color: var(--text);
+    font-family: 'Courier Prime', monospace;
+    min-height: 100vh;
+    padding: 48px 18px 96px;
+  }
+
+  .app { max-width: 640px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 32px; }
+
+  .eyebrow {
+    font-family: 'Special Elite', cursive;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: 'Special Elite', cursive;
+    font-size: 38px;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+
+  .subhead {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 10px;
+    max-width: 42ch;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.5;
+  }
+
+  .notif-hint {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .notif-hint button {
+    background: none;
+    border: none;
+    color: var(--amber);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    font-family: 'Courier Prime', monospace;
+    font-size: 12px;
+    padding: 0;
+  }
+
+  /* ===== DEPARTURE BOARD ===== */
+  .board {
+    background: var(--board-case);
+    border-radius: 8px;
+    padding: 24px 20px;
+    margin-bottom: 28px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 12px 30px rgba(0,0,0,0.4);
+  }
+
+  .board-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .board-label {
+    font-family: 'Special Elite', cursive;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .board-status {
+    font-family: 'Special Elite', cursive;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+  }
+
+  .board-status.late { color: var(--red); border-color: var(--red); }
+  .board-status.clear { color: var(--text-dim); border-color: #2a2823; }
+
+  .board-title {
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 18px;
+    min-height: 20px;
+  }
+
+  .board-digits {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 4px;
+    perspective: 400px;
+  }
+
+  .digit-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .digit-pair { display: flex; gap: 2px; }
+
+  .flip-digit {
+    width: 30px;
+    height: 40px;
+    background: var(--board-cell);
+    color: var(--amber);
+    font-family: 'Courier Prime', monospace;
+    font-weight: 700;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+
+  .flip-digit.late { color: var(--red); }
+  .flip-digit.clear { color: #3a362e; }
+
+  .flip-digit.flip { animation: flipDigit 0.24s ease; }
+
+  @keyframes flipDigit {
+    0% { transform: rotateX(0deg); }
+    50% { transform: rotateX(-90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+
+  .digit-sep {
+    color: var(--amber-dim);
+    font-size: 20px;
+    align-self: center;
+    margin-bottom: 20px;
+  }
+
+  .digit-label {
+    font-family: 'Special Elite', cursive;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* ===== COMPOSER (ticket counter) ===== */
+  .composer {
+    background: var(--board-case);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .composer-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .composer-row:last-child { margin-bottom: 0; }
+  .composer-row.details { flex-wrap: wrap; }
+
+  input[type="text"], input[type="date"], input[type="time"], select {
+    background: #1e1c18;
+    border: 1px solid #2a2823;
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Courier Prime', monospace;
+    font-size: 13px;
+    padding: 9px 11px;
+    outline: none;
+  }
+
+  input[type="date"], input[type="time"] {
+    color-scheme: dark;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(1) saturate(4) hue-rotate(0deg) brightness(1.1);
+    cursor: pointer;
+  }
+
+  input[type="text"] { flex: 1; }
+  input:focus, select:focus { border-color: var(--amber-dim); }
+  ::placeholder { color: var(--text-dim); }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+
+  .field label {
+    font-family: 'Special Elite', cursive;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  select { cursor: pointer; }
+
+  .add-btn {
+    background: var(--amber);
+    color: #201a08;
+    border: none;
+    border-radius: 4px;
+    font-family: 'Special Elite', cursive;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 9px 18px;
+    cursor: pointer;
+  }
+
+  .add-btn:hover { background: #ffc333; }
+
+  /* ===== FILTERS (gate tabs) ===== */
+  .filters {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+  }
+
+  .filter-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    font-family: 'Special Elite', cursive;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  .filter-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+  .filter-btn:hover:not(.active) { color: var(--text); }
+
+  /* ===== TICKETS ===== */
+  .task-list { display: flex; flex-direction: column; gap: 14px; }
+
+  .ticket {
+    background: var(--ticket-bg);
+    color: var(--ticket-ink);
+    border-radius: 4px;
+    padding: 16px 18px 16px 30px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ticket::before, .ticket::after {
+    content: '';
+    position: absolute;
+    left: -9px;
+    width: 18px;
+    height: 18px;
+    background: var(--bg);
+    border-radius: 50%;
+  }
+  .ticket::before { top: -9px; }
+  .ticket::after { bottom: -9px; }
+
+  .perf {
+    position: absolute;
+    left: 18px;
+    top: 6px;
+    bottom: 6px;
+    border-left: 2px dashed var(--ticket-border);
+  }
+
+  .ticket.done { opacity: 0.55; }
+
+  .ticket-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .ticket-no {
+    font-size: 11px;
+    color: var(--ticket-ink-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .stamp {
+    font-family: 'Special Elite', cursive;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    transform: rotate(-3deg);
+  }
+
+  .stamp.priority-high { color: var(--red); }
+  .stamp.priority-med { color: #a9782c; }
+  .stamp.priority-low { color: var(--ticket-ink-dim); }
+
+  .ticket-title {
+    font-family: 'Courier Prime', monospace;
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+    word-break: break-word;
+  }
+
+  .ticket.done .ticket-title { text-decoration: line-through; }
+
+  .ticket-due {
+    font-size: 12px;
+    color: var(--ticket-ink-dim);
+    margin-bottom: 12px;
+  }
+
+  .ticket-due.overdue { color: var(--red); font-weight: 700; }
+  .ticket-due.soon { color: #a9782c; }
+
+  .ticket-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed var(--ticket-border);
+    padding-top: 10px;
+  }
+
+  .punch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--ticket-ink-dim);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ticket-bg);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .punch.checked { background: var(--green); border-color: var(--green); }
+
+  .void-btn {
+    background: none;
+    border: none;
+    color: var(--ticket-ink-dim);
+    font-family: 'Courier Prime', monospace;
+    font-size: 11px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+
+  .void-btn:hover { color: var(--red); }
+
+  .overlay-stamp {
+    position: absolute;
+    top: 14px;
+    right: -10px;
+    font-family: 'Special Elite', cursive;
+    font-size: 15px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 4px 20px;
+    transform: rotate(10deg);
+    border: 2px solid currentColor;
+    opacity: 0.75;
+  }
+
+  .overlay-stamp.late { color: var(--red); }
+  .overlay-stamp.gone { color: var(--green); }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-dim);
+    font-size: 13px;
+    border: 1px dashed #2a2823;
+    border-radius: 6px;
+  }
+
+  /* ===== ALERT (telegram slip) ===== */
+  .alert-stack {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 999;
+    width: 90%;
+    max-width: 380px;
+  }
+
+  .alert-banner {
+    background: var(--ticket-bg);
+    color: var(--ticket-ink);
+    border-radius: 4px;
+    padding: 14px 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    animation: slipIn 0.25s ease;
+  }
+
+  @keyframes slipIn {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .alert-top {
+    font-family: 'Special Elite', cursive;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 6px;
+  }
+
+  .alert-title {
+    font-size: 13px;
+    margin-bottom: 10px;
+    line-height: 1.4;
+  }
+
+  .alert-actions { display: flex; gap: 8px; }
+
+  .alert-actions button {
+    flex: 1;
+    font-family: 'Courier Prime', monospace;
+    font-size: 12px;
+    padding: 8px;
+    border-radius: 3px;
+    border: 1px solid var(--ticket-ink-dim);
+    background: transparent;
+    color: var(--ticket-ink);
+    cursor: pointer;
+  }
+
+  .alert-actions button.primary {
+    background: var(--ticket-ink);
+    color: var(--ticket-bg);
+    border-color: var(--ticket-ink);
+  }
+
+  @media (max-width: 480px) {
+    .flip-digit { width: 24px; height: 34px; font-size: 19px; }
+    h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="alert-stack" id="alertStack"></div>
+
+<div class="app">
+  <header>
+    <div class="eyebrow">Deadline Dispatch Office</div>
+    <h1>DISPATCH</h1>
+    <p class="subhead">Every task is a ticket. The board up top always shows what's leaving next — and it comes looking for you when time's short.</p>
+    <div class="notif-hint" id="notifHint">
+      Enable desktop alerts —
+      <button id="enableNotif">turn on notifications</button>
+    </div>
+  </header>
+
+  <div class="board">
+    <div class="board-top">
+      <span class="board-label" id="boardLabel">Next Departure</span>
+      <span class="board-status" id="boardStatus">On Time</span>
+    </div>
+    <div class="board-title" id="boardTitle">No active tasks</div>
+    <div class="board-digits" id="boardDigits">
+      <div class="digit-group">
+        <div class="digit-pair" id="grpD"></div>
+        <span class="digit-label">Days</span>
+      </div>
+      <span class="digit-sep">:</span>
+      <div class="digit-group">
+        <div class="digit-pair" id="grpH"></div>
+        <span class="digit-label">Hrs</span>
+      </div>
+      <span class="digit-sep">:</span>
+      <div class="digit-group">
+        <div class="digit-pair" id="grpM"></div>
+        <span class="digit-label">Min</span>
+      </div>
+      <span class="digit-sep">:</span>
+      <div class="digit-group">
+        <div class="digit-pair" id="grpS"></div>
+        <span class="digit-label">Sec</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <div class="composer-row">
+      <input type="text" id="titleInput" placeholder="What needs doing?" maxlength="120">
+      <button class="add-btn" id="addBtn">Issue Ticket</button>
+    </div>
+    <div class="composer-row details">
+      <div class="field">
+        <label>Due date</label>
+        <input type="date" id="dateInput">
+      </div>
+      <div class="field">
+        <label>Due time</label>
+        <input type="time" id="timeInput">
+      </div>
+      <div class="field">
+        <label>Remind me</label>
+        <select id="reminderInput">
+          <option value="0">At due time</option>
+          <option value="5">5 min before</option>
+          <option value="15" selected>15 min before</option>
+          <option value="30">30 min before</option>
+          <option value="60">1 hour before</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select id="priorityInput">
+          <option value="low">Low</option>
+          <option value="med" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="active">Active</button>
+    <button class="filter-btn" data-filter="overdue">Overdue</button>
+    <button class="filter-btn" data-filter="done">Departed</button>
+  </div>
+
+  <div class="task-list" id="taskList"></div>
+</div>
+
+<script>
+  const titleInput = document.getElementById('titleInput');
+  const dateInput = document.getElementById('dateInput');
+  const timeInput = document.getElementById('timeInput');
+  const reminderInput = document.getElementById('reminderInput');
+  const priorityInput = document.getElementById('priorityInput');
+  const addBtn = document.getElementById('addBtn');
+  const taskList = document.getElementById('taskList');
+  const alertStack = document.getElementById('alertStack');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const enableNotifBtn = document.getElementById('enableNotif');
+  const notifHint = document.getElementById('notifHint');
+  const boardLabel = document.getElementById('boardLabel');
+  const boardStatus = document.getElementById('boardStatus');
+  const boardTitle = document.getElementById('boardTitle');
+
+  let tasks = [];
+  let currentFilter = 'all';
+  let idCounter = 1;
+  let audioCtx = null;
+
+  const today = new Date();
+  dateInput.value = today.toISOString().split('T')[0];
+
+  // Build digit cells for board groups
+  function buildGroup(el, count) {
+    for (let i = 0; i < count; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'flip-digit clear';
+      cell.dataset.value = '0';
+      cell.textContent = '0';
+      el.appendChild(cell);
+    }
+  }
+  buildGroup(document.getElementById('grpD'), 2);
+  buildGroup(document.getElementById('grpH'), 2);
+  buildGroup(document.getElementById('grpM'), 2);
+  buildGroup(document.getElementById('grpS'), 2);
+
+  function setDigit(el, val, stateClass) {
+    const changed = el.dataset.value !== val;
+    el.className = 'flip-digit ' + stateClass + (changed ? ' flip' : '');
+    if (changed) {
+      el.dataset.value = val;
+      setTimeout(() => { el.textContent = val; }, 100);
+      setTimeout(() => { el.className = 'flip-digit ' + stateClass; }, 240);
+    } else {
+      el.textContent = val;
+    }
+  }
+
+  function setGroup(el, num, stateClass) {
+    const str = String(Math.min(99, Math.max(0, num))).padStart(2, '0');
+    const cells = el.children;
+    setDigit(cells[0], str[0], stateClass);
+    setDigit(cells[1], str[1], stateClass);
+  }
+
+  function playChime() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+      [880, 1108].forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + i * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.18 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.18 + 0.35);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now + i * 0.18);
+        osc.stop(now + i * 0.18 + 0.4);
+      });
+    } catch (e) { /* audio unsupported, ignore */ }
+  }
+
+  enableNotifBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      notifHint.textContent = "Desktop notifications aren't supported in this browser.";
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    notifHint.textContent = perm === 'granted'
+      ? "Desktop alerts are on. You'll be notified even if this tab is in the background."
+      : 'Notifications blocked — alerts will still show inside this page.';
+  });
+
+  function addTask() {
+    const title = titleInput.value.trim();
+    if (!title) { titleInput.focus(); return; }
+    if (!dateInput.value || !timeInput.value) {
+      alert('Please set both a due date and due time.');
+      return;
+    }
+    const dueAt = new Date(`${dateInput.value}T${timeInput.value}`);
+    const reminderLead = parseInt(reminderInput.value, 10);
+    const reminderAt = new Date(dueAt.getTime() - reminderLead * 60000);
+
+    tasks.push({
+      id: idCounter++,
+      title,
+      dueAt,
+      reminderAt,
+      priority: priorityInput.value,
+      done: false,
+      reminderFired: false,
+      snoozedUntil: null
+    });
+
+    titleInput.value = '';
+    render();
+  }
+
+  function urgencyState(task) {
+    if (task.done) return 'done';
+    const now = Date.now();
+    const due = task.dueAt.getTime();
+    if (due < now) return 'overdue';
+    if (due - now < 3600000) return 'soon';
+    return 'ok';
+  }
+
+  function formatDue(date) {
+    const opts = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    return date.toLocaleString(undefined, opts);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function updateBoard() {
+    const active = tasks.filter(t => !t.done).sort((a, b) => a.dueAt - b.dueAt);
+    const next = active[0];
+
+    if (!next) {
+      boardLabel.textContent = 'Departure Board';
+      boardStatus.textContent = 'Clear';
+      boardStatus.className = 'board-status clear';
+      boardTitle.textContent = 'No active tasks';
+      setGroup(document.getElementById('grpD'), 0, 'clear');
+      setGroup(document.getElementById('grpH'), 0, 'clear');
+      setGroup(document.getElementById('grpM'), 0, 'clear');
+      setGroup(document.getElementById('grpS'), 0, 'clear');
+      return;
+    }
+
+    const now = Date.now();
+    const diff = next.dueAt.getTime() - now;
+    const late = diff < 0;
+    const abs = Math.abs(diff);
+
+    const days = Math.floor(abs / 86400000);
+    const hours = Math.floor((abs % 86400000) / 3600000);
+    const mins = Math.floor((abs % 3600000) / 60000);
+    const secs = Math.floor((abs % 60000) / 1000);
+
+    boardLabel.textContent = late ? 'Overdue' : 'Next Departure';
+    boardStatus.textContent = late ? 'Delayed' : (diff < 3600000 ? 'Boarding' : 'On Time');
+    boardStatus.className = 'board-status' + (late ? ' late' : '');
+    boardTitle.textContent = next.title;
+
+    const stateClass = late ? 'late' : '';
+    setGroup(document.getElementById('grpD'), days, stateClass);
+    setGroup(document.getElementById('grpH'), hours, stateClass);
+    setGroup(document.getElementById('grpM'), mins, stateClass);
+    setGroup(document.getElementById('grpS'), secs, stateClass);
+  }
+
+  function render() {
+    let visible = tasks;
+    if (currentFilter === 'active') visible = tasks.filter(t => !t.done);
+    if (currentFilter === 'done') visible = tasks.filter(t => t.done);
+    if (currentFilter === 'overdue') visible = tasks.filter(t => !t.done && urgencyState(t) === 'overdue');
+
+    visible = [...visible].sort((a, b) => a.dueAt - b.dueAt);
+
+    taskList.innerHTML = '';
+
+    if (visible.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = currentFilter === 'done' ? 'Nothing departed yet.' : 'No tickets here. Issue one above.';
+      taskList.appendChild(empty);
+      updateBoard();
+      return;
+    }
+
+    visible.forEach((task, i) => {
+      const urgency = urgencyState(task);
+      const row = document.createElement('div');
+      row.className = 'ticket' + (task.done ? ' done' : '');
+
+      const dueClass = urgency === 'overdue' ? 'overdue' : urgency === 'soon' ? 'soon' : '';
+      const dueLabel = (urgency === 'overdue' && !task.done ? 'LATE · ' : '') + formatDue(task.dueAt);
+
+      let overlay = '';
+      if (task.done) overlay = '<div class="overlay-stamp gone">Departed</div>';
+      else if (urgency === 'overdue') overlay = '<div class="overlay-stamp late">Late</div>';
+
+      row.innerHTML = `
+        <div class="perf"></div>
+        <div class="ticket-top">
+          <span class="ticket-no">No. ${String(task.id).padStart(3, '0')}</span>
+          <span class="stamp priority-${task.priority}">${task.priority}</span>
+        </div>
+        <div class="ticket-title">${escapeHtml(task.title)}</div>
+        <div class="ticket-due ${dueClass}">${dueLabel}</div>
+        <div class="ticket-bottom">
+          <button class="punch ${task.done ? 'checked' : ''}" data-id="${task.id}" data-action="toggle">${task.done ? '✓' : ''}</button>
+          <button class="void-btn" data-id="${task.id}" data-action="delete">void ticket</button>
+        </div>
+        ${overlay}
+      `;
+      taskList.appendChild(row);
+    });
+
+    updateBoard();
+  }
+
+  taskList.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.id, 10);
+    const action = btn.dataset.action;
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    if (action === 'toggle') { task.done = !task.done; render(); }
+    else if (action === 'delete') { tasks = tasks.filter(t => t.id !== id); render(); }
+  });
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  addBtn.addEventListener('click', addTask);
+  titleInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTask(); });
+
+  function showAlert(task) {
+    playChime();
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Reminder: ' + task.title, { body: 'Due ' + formatDue(task.dueAt), silent: true });
+    }
+
+    const banner = document.createElement('div');
+    banner.className = 'alert-banner';
+    banner.innerHTML = `
+      <div class="alert-top">// Telegram — Reminder //</div>
+      <div class="alert-title">${escapeHtml(task.title)} — due ${formatDue(task.dueAt)}</div>
+      <div class="alert-actions">
+        <button data-action="snooze">Snooze 10m</button>
+        <button data-action="done" class="primary">Mark done</button>
+      </div>
+    `;
+    alertStack.appendChild(banner);
+
+    banner.querySelector('[data-action="done"]').addEventListener('click', () => {
+      task.done = true;
+      banner.remove();
+      render();
+    });
+    banner.querySelector('[data-action="snooze"]').addEventListener('click', () => {
+      task.reminderFired = false;
+      task.snoozedUntil = Date.now() + 10 * 60000;
+      banner.remove();
+    });
+  }
+
+  function checkReminders() {
+    const now = Date.now();
+    tasks.forEach(task => {
+      if (task.done || task.reminderFired) return;
+      if (task.snoozedUntil && now < task.snoozedUntil) return;
+      const trigger = task.snoozedUntil || task.reminderAt.getTime();
+      if (now >= trigger) {
+        task.reminderFired = true;
+        task.snoozedUntil = null;
+        showAlert(task);
+      }
+    });
+  }
+
+  setInterval(() => {
+    checkReminders();
+    render();
+  }, 1000);
+
+  render();
+</script>
+
+</body>
+</html>
